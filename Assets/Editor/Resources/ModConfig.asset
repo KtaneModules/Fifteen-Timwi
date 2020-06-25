@@ -11,10 +11,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 615501dbe4f3fe94fbf4b564abb10237, type: 3}
   m_Name: ModConfig
   m_EditorClassIdentifier: 
-  id: 
-  title: 
+  id: fifteen
+  title: Fifteen
   author: Goofy
-  description: 
+  description: 'Move the squares around to solve this module!
+
+
+    Module idea by Goofy.
+
+    Module implementation by Goofy and Timwi.'
   version: 1.0
   outputFolder: build
-  previewImage: {fileID: 0}
+  previewImage: {fileID: 2800000, guid: c95d22e5f5acb8743b96c8f288cdfa12, type: 3}
