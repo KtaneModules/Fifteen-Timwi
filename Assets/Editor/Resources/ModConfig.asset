@@ -19,7 +19,10 @@ MonoBehaviour:
 
     Module idea by Goofy.
 
-    Module implementation by Goofy and Timwi.'
+    Module implementation by Goofy.
+
+
+    Twitch Plays supported.'
   version: 1.0
   outputFolder: build
   previewImage: {fileID: 2800000, guid: c95d22e5f5acb8743b96c8f288cdfa12, type: 3}

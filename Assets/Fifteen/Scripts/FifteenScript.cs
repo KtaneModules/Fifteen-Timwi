@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using KModkit;
 using UnityEngine;
 using Random = UnityEngine.Random;
@@ -50,6 +51,66 @@ public class FifteenScript : MonoBehaviour
     float getX(int index) { return -0.059f + .03f * (index % 4); }
     float getZ(int index) { return 0.0295f - .03f * (index / 4); }
 
+    private FifteenSettings modSettings = new FifteenSettings();
+
+    class FifteenSettings
+    {
+        public int minMoves = 8;
+        public int maxMoves = 10;
+    }
+
+    static Dictionary<string, object>[] TweaksEditorSettings = new Dictionary<string, object>[]
+    {
+        new Dictionary<string, object>
+        {
+            { "Filename", "Fifteen-settings.json" },
+            { "Name", "Fifteen Settings" },
+            { "Listing", new List<Dictionary<string, object>>{
+                new Dictionary<string, object>
+                {
+                    { "Key", "minMoves" },
+                    { "Text", "Set the minimum number of moves (min 8)." }
+                },
+                new Dictionary<string, object>
+                {
+                    { "Key", "maxMoves" },
+                    { "Text", "Set the maximum number of moves (max 99)." }
+                },
+            } }
+        }
+    };
+
+    void Awake()
+    {
+        ModConfig<FifteenSettings> modConfig = new ModConfig<FifteenSettings>("Fifteen-settings");
+        modSettings = modConfig.Settings;
+        var min = modSettings.minMoves;
+        var max = modSettings.maxMoves;
+        if (min < 8 || min > 98)
+            min = 8;
+        if (max > 99)
+            max = 99;
+        if (min > max)
+        {
+            max = min;
+            if (max == 99)
+                min--;
+        }
+        if (min == max)
+        {
+            if (max == 99)
+                min--;
+            else
+                max++;
+        }
+
+        modSettings.minMoves = min;
+        modSettings.maxMoves = max;
+
+        modConfig.Settings = modSettings;
+    }
+
+
     void Start()
     {
         moduleId = moduleIdCounter++;
@@ -73,12 +134,10 @@ public class FifteenScript : MonoBehaviour
         placements.Add(new PlacementInfo { Value = Bomb.GetBatteryCount() % 6 == 0 ? 6 : Bomb.GetBatteryCount() % 6, Explanation = "Amount of batteries % 6" });
         placements.Add(new PlacementInfo { Value = Bomb.GetPortCount() % 5 == 0 ? 5 : Bomb.GetPortCount() % 5, Explanation = "Amount of ports % 5" });
         placements.Add(new PlacementInfo { Value = Bomb.GetPortPlateCount() % 4 == 0 ? 4 : Bomb.GetPortPlateCount() % 4, Explanation = "Amount of port plates % 4" });
-        placements.Add(new PlacementInfo { Value = (int) Bomb.GetTime() % 3 == 0 ? 3 : (int) Bomb.GetTime() % 3, Explanation = "Starting bomb timer in minutes % 3" });
+        placements.Add(new PlacementInfo { Value = ((int) Bomb.GetTime())/60 % 3 == 0 ? 3 : ((int) Bomb.GetTime()) / 60 % 3, Explanation = "Starting bomb timer in minutes % 3" });
         placements.Add(new PlacementInfo { Value = Bomb.GetOnIndicators().Count() % 2 == 0 ? 2 : Bomb.GetOnIndicators().Count() % 2, Explanation = "Amount of lit indicators % 2" });
         Debug.LogFormat(@"[Fifteen #{0}] Indexes for placing the tiles: {1}{2}", moduleId, Environment.NewLine, placements.Select(placement => string.Format("{0}: {1}", placement.Explanation, placement.Value)).Join("\r\n"));
         var initialOrder = Enumerable.Range(1, 16).ToList();
-        Debug.LogFormat(@"<Fifteen #{0}> Placement values: {1}", moduleId, placements.Select(d => d.Value).ToArray().Join(", "));
-        Debug.LogFormat(@"<Fifteen #{0}> Initial order: {1}", moduleId, initialOrder.Join(", "));
         for (var i = 0; i < 16; i++)
         {
             if (i == 15)
@@ -103,9 +162,8 @@ public class FifteenScript : MonoBehaviour
                 }
                 initialOrder.RemoveAt(placements[i].Value - 1);
             }
-            Debug.LogFormat(@"<Fifteen #{0}> New order: {1}", moduleId, initialOrder.Join(", "));
         }
-        Debug.LogFormat(@"[Fifteen #{0}] Initial Board: {1}", moduleId, tiles.Select(tile => tile.Empty ? "Empty" : tile.Button.GetComponentInChildren<TextMesh>().text).Join(", "));
+        Debug.LogFormat(@"[Fifteen #{0}] Goal Board: {1}", moduleId, tiles.Select(tile => tile.Empty ? "Empty" : tile.Button.GetComponentInChildren<TextMesh>().text).Join(", "));
         for (var i = 0; i < tiles.Length; i++)
         {
             if (tiles[i].Empty)
@@ -116,7 +174,7 @@ public class FifteenScript : MonoBehaviour
 
         tiles.CopyTo(solution, 0);
 
-        movesLeft = Random.Range(8, 11);
+        movesLeft = Random.Range(modSettings.minMoves, modSettings.maxMoves+1);
         EmptyGO.GetComponentInChildren<TextMesh>().text = movesLeft.ToString();
 
         for (var i = 0; i < movesLeft; i++)
@@ -130,6 +188,7 @@ public class FifteenScript : MonoBehaviour
             tiles[buttonIxs[0]] = tiles[emptyIx];
             tiles[emptyIx] = t;
         }
+        Debug.LogFormat(@"[Fifteen #{0}] Steps to goal: {1}", moduleId, solutionMoves.AsEnumerable().Reverse().Select(inf => Array.IndexOf(Buttons, inf.Button) + 1).Join(", "));
     }
 
 
@@ -151,7 +210,6 @@ public class FifteenScript : MonoBehaviour
                 var t = tiles[buttonIx];
                 tiles[buttonIx] = tiles[emptyIx];
                 tiles[emptyIx] = t;
-                Debug.LogFormat(@"<Fifteen #{0}> Board after move: {1}", moduleId, tiles.Select(tile => tile.Empty ? "Empty" : tile.Button.GetComponentInChildren<TextMesh>().text).Join(", "));
             }
             else
             {
@@ -164,6 +222,7 @@ public class FifteenScript : MonoBehaviour
             {
                 Debug.LogFormat(@"[Fifteen #{0}] Solved! You successfully disarmed the module!", moduleId);
                 Module.HandlePass();
+                moduleSolved = true;
             }
             else if (movesLeft == 0)
             {
@@ -219,9 +278,36 @@ public class FifteenScript : MonoBehaviour
             }
         }
     }
+#pragma warning disable 0414
+    readonly string TwitchHelpMessage = "!{0} 15 12 8 [press these tiles in order]";
+#pragma warning restore 0414
+
+    IEnumerator ProcessTwitchCommand(string command)
+    {
+        Match m;
+        int i;
+        if (moduleSolved)
+        {
+            yield return "sendtochaterror The module is already solved";
+            yield break;
+        }
+        else if ((m = Regex.Match(command, @"^\s*((?:(?:[1-9]|1[0-5]) )*([1-9]|1[0-5]))\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)).Success)
+        {
+            yield return null;
+            yield return m.Groups[1].Value.Split(' ').Select(v => Buttons[int.Parse(v) - 1]);
+            yield break;
+
+        }
+        else
+        {
+            yield return "sendtochaterror Invalid Command";
+            yield break;
+        }
+    }
 
     IEnumerator TwitchHandleForcedSolve()
     {
+        Debug.LogFormat(@"[Fifteen #{0}] Module was force-solved by TP.", moduleId);
         tpSolve = true;
         for (var i = solutionMoves.Count - 1; i >= 0; i--)
         {
