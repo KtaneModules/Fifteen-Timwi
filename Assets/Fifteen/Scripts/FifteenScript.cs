@@ -14,6 +14,9 @@ public class FifteenScript : MonoBehaviour
     public KMAudio Audio;
     public KMSelectable[] Buttons;
     public GameObject EmptyGO;
+    public Material TintedBackground;
+    public Material UntintedBackground;
+    public MeshRenderer ModuleBackground;
 
     struct TileInfo
     {
@@ -40,7 +43,7 @@ public class FifteenScript : MonoBehaviour
     static int moduleIdCounter = 1;
     int moduleId, movesLeft;
     bool moduleSolved = false;
-    bool tpSolve = false;
+    bool animationFinished = false;
     readonly TileInfo[] tiles = new TileInfo[16];
     readonly TileInfo[] solution = new TileInfo[16];
     readonly List<MoveInfo> playerMoves = new List<MoveInfo>();
@@ -84,6 +87,7 @@ public class FifteenScript : MonoBehaviour
     {
         ModConfig<FifteenSettings> modConfig = new ModConfig<FifteenSettings>("Fifteen-settings");
         modSettings = modConfig.Settings;
+        Debug.LogFormat("{0}, {1}", modSettings.minMoves, modSettings.maxMoves);
         var min = modSettings.minMoves;
         var max = modSettings.maxMoves;
         if (min < 8 || min > 98)
@@ -106,8 +110,11 @@ public class FifteenScript : MonoBehaviour
 
         modSettings.minMoves = min;
         modSettings.maxMoves = max;
+        Debug.LogFormat("{0}, {1}", modSettings.minMoves, modSettings.maxMoves);
 
         modConfig.Settings = modSettings;
+
+        ModuleBackground.sharedMaterial = min != 8 || max != 10 ? TintedBackground : UntintedBackground;
     }
 
 
@@ -134,7 +141,7 @@ public class FifteenScript : MonoBehaviour
         placements.Add(new PlacementInfo { Value = Bomb.GetBatteryCount() % 6 == 0 ? 6 : Bomb.GetBatteryCount() % 6, Explanation = "Amount of batteries % 6" });
         placements.Add(new PlacementInfo { Value = Bomb.GetPortCount() % 5 == 0 ? 5 : Bomb.GetPortCount() % 5, Explanation = "Amount of ports % 5" });
         placements.Add(new PlacementInfo { Value = Bomb.GetPortPlateCount() % 4 == 0 ? 4 : Bomb.GetPortPlateCount() % 4, Explanation = "Amount of port plates % 4" });
-        placements.Add(new PlacementInfo { Value = ((int) Bomb.GetTime())/60 % 3 == 0 ? 3 : ((int) Bomb.GetTime()) / 60 % 3, Explanation = "Starting bomb timer in minutes % 3" });
+        placements.Add(new PlacementInfo { Value = ((int) Bomb.GetTime()) / 60 % 3 == 0 ? 3 : ((int) Bomb.GetTime()) / 60 % 3, Explanation = "Starting bomb timer in minutes % 3" });
         placements.Add(new PlacementInfo { Value = Bomb.GetOnIndicators().Count() % 2 == 0 ? 2 : Bomb.GetOnIndicators().Count() % 2, Explanation = "Amount of lit indicators % 2" });
         Debug.LogFormat(@"[Fifteen #{0}] Indexes for placing the tiles: {1}{2}", moduleId, Environment.NewLine, placements.Select(placement => string.Format("{0}: {1}", placement.Explanation, placement.Value)).Join("\r\n"));
         var initialOrder = Enumerable.Range(1, 16).ToList();
@@ -174,7 +181,7 @@ public class FifteenScript : MonoBehaviour
 
         tiles.CopyTo(solution, 0);
 
-        movesLeft = Random.Range(modSettings.minMoves, modSettings.maxMoves+1);
+        movesLeft = Random.Range(modSettings.minMoves, modSettings.maxMoves + 1);
         EmptyGO.GetComponentInChildren<TextMesh>().text = movesLeft.ToString();
 
         for (var i = 0; i < movesLeft; i++)
@@ -190,7 +197,6 @@ public class FifteenScript : MonoBehaviour
         }
         Debug.LogFormat(@"[Fifteen #{0}] Steps to goal: {1}", moduleId, solutionMoves.AsEnumerable().Reverse().Select(inf => Array.IndexOf(Buttons, inf.Button) + 1).Join(", "));
     }
-
 
     KMSelectable.OnInteractHandler ButtonPressed(int btn)
     {
@@ -221,7 +227,6 @@ public class FifteenScript : MonoBehaviour
             if (tiles.SequenceEqual(solution))
             {
                 Debug.LogFormat(@"[Fifteen #{0}] Solved! You successfully disarmed the module!", moduleId);
-                Module.HandlePass();
                 moduleSolved = true;
             }
             else if (movesLeft == 0)
@@ -256,13 +261,13 @@ public class FifteenScript : MonoBehaviour
 
     IEnumerator AnimationQueue()
     {
-        while (true)
+        while (!moduleSolved || animationQueue.Count > 0)
         {
             while (animationQueue.Count == 0)
                 yield return null;
 
             var item = animationQueue.Dequeue();
-            var duration = item.IsReset ? .1f : item.IsShuffle ? .00005f : tpSolve ? .05f : .2f;
+            var duration = item.IsReset ? .1f : item.IsShuffle ? .00005f : .2f;
             var elapsed = 0f;
             var buttonPos = new Vector3(getX(item.From), 0.01211f, getZ(item.From));
             var emptyPos = new Vector3(getX(item.To), 0.01211f, getZ(item.To));
@@ -277,7 +282,10 @@ public class FifteenScript : MonoBehaviour
                     EmptyGO.GetComponentInChildren<TextMesh>().text = item.NewMoveNumber.ToString();
             }
         }
+        Module.HandlePass();
+        animationFinished = true;
     }
+
 #pragma warning disable 0414
     readonly string TwitchHelpMessage = "!{0} 15 12 8 [press these tiles in order]";
 #pragma warning restore 0414
@@ -285,7 +293,6 @@ public class FifteenScript : MonoBehaviour
     IEnumerator ProcessTwitchCommand(string command)
     {
         Match m;
-        int i;
         if (moduleSolved)
         {
             yield return "sendtochaterror The module is already solved";
@@ -308,11 +315,12 @@ public class FifteenScript : MonoBehaviour
     IEnumerator TwitchHandleForcedSolve()
     {
         Debug.LogFormat(@"[Fifteen #{0}] Module was force-solved by TP.", moduleId);
-        tpSolve = true;
         for (var i = solutionMoves.Count - 1; i >= 0; i--)
         {
             Buttons[Buttons.IndexOf(btn => btn.Equals(solutionMoves[i].Button))].OnInteract();
             yield return new WaitForSeconds(.1f);
         }
+        while (!animationFinished)
+            yield return true;
     }
 }
