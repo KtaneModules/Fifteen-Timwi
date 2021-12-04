@@ -262,7 +262,7 @@ public class FifteenScript : MonoBehaviour
                 yield return null;
 
             var item = animationQueue.Dequeue();
-            var duration = item.IsReset ? .2f : item.IsShuffle ? .00005f : tpSolve ? .1f : .5f;
+            var duration = item.IsReset ? .1f : item.IsShuffle ? .00005f : tpSolve ? .05f : .2f;
             var elapsed = 0f;
             var buttonPos = new Vector3(getX(item.From), 0.01211f, getZ(item.From));
             var emptyPos = new Vector3(getX(item.To), 0.01211f, getZ(item.To));
